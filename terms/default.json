@@ -1,0 +1,58 @@
+{
+  "name": "Party Mix",
+  "settings": {
+    "geo": "US",
+    "date_range": "today 12-m",
+    "timer": 60
+  },
+  "terms": [
+    {
+      "text": "Pizza topping",
+      "bonus_term": "pepperoni",
+      "bonus_points": 15,
+      "multiplier": 1
+    },
+    {
+      "text": "Social media platform",
+      "bonus_term": "instagram",
+      "bonus_points": 15,
+      "multiplier": 1
+    },
+    {
+      "text": "Streaming service",
+      "bonus_term": "netflix",
+      "bonus_points": 15,
+      "multiplier": 1
+    },
+    {
+      "text": "Fast food chain",
+      "bonus_term": "mcdonald's",
+      "bonus_points": 15,
+      "multiplier": 1
+    },
+    {
+      "text": "Dog breed",
+      "bonus_term": "golden retriever",
+      "bonus_points": 20,
+      "multiplier": 1
+    },
+    {
+      "text": "Superhero",
+      "bonus_term": "spider-man",
+      "bonus_points": 15,
+      "multiplier": 1
+    },
+    {
+      "text": "Sport",
+      "bonus_term": "football",
+      "bonus_points": 15,
+      "multiplier": 1
+    },
+    {
+      "text": "Something you Google when bored",
+      "bonus_term": "funny videos",
+      "bonus_points": 25,
+      "multiplier": 2
+    }
+  ]
+}

@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrendGame</title>
+<style>
+/* ─── Reset & Variables ────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #13111c;
+  --surf:     #1e1b30;
+  --surf2:    #2a2644;
+  --border:   #3d3860;
+  --accent:   #7c6aff;
+  --accent2:  #5b4fd9;
+  --teal:     #00d4aa;
+  --green:    #4ade80;
+  --red:      #ff6b6b;
+  --gold:     #ffd700;
+  --silver:   #c0c0c0;
+  --bronze:   #cd7f32;
+  --text:     #f1f0f9;
+  --muted:    #9590b0;
+  --r:        10px;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Screens ──────────────────────────────────────────────────────────────── */
+.screen { display: none; min-height: 100vh; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ─── Common Components ────────────────────────────────────────────────────── */
+input, select {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-family: inherit;
+  width: 100%;
+  outline: none;
+  transition: border-color .2s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input::placeholder { color: var(--muted); }
+select option { background: var(--surf2); }
+
+button { cursor: pointer; font-family: inherit; border: none; outline: none; }
+
+.btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: opacity .15s, transform .1s;
+}
+.btn:hover { opacity: .85; }
+.btn:active { transform: scale(.97); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  padding: 16px 32px;
+  font-size: 18px;
+  border-radius: var(--r);
+}
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+.btn-secondary {
+  background: var(--surf2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-danger { background: #7a2020; color: #ffaaaa; }
+
+.btn-sm { padding: 6px 14px; font-size: 13px; }
+
+.panel {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: #2d2b40;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px 24px;
+  font-size: 15px;
+  z-index: 1000;
+  transition: transform .3s ease;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.error { border-color: var(--red); color: var(--red); }
+
+
+/* ─── Setup Screen ─────────────────────────────────────────────────────────── */
+#setup header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border);
+}
+#setup header h1 { font-size: 22px; letter-spacing: .03em; }
+#setup header .sub { color: var(--muted); font-size: 14px; }
+
+#setup main {
+  flex: 1;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.setup-columns {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .setup-columns { grid-template-columns: 1fr; }
+}
+
+/* Teams panel */
+.team-list { display: flex; flex-direction: column; gap: 8px; }
+
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.team-row .team-num {
+  width: 28px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.team-row input { flex: 1; }
+.team-row .del-btn {
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color .15s, background .15s;
+}
+.team-row .del-btn:hover { color: var(--red); background: rgba(255,107,107,.1); }
+
+.add-team-btn {
+  margin-top: 8px;
+  background: none;
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+  transition: background .15s;
+}
+.add-team-btn:hover { background: rgba(124,106,255,.1); }
+
+/* Terms panel */
+.terms-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.terms-toolbar select { max-width: 200px; }
+.terms-toolbar .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+.term-list { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
+
+.term-row {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+.term-row-main { display: flex; gap: 8px; align-items: center; }
+.term-row-main input { font-size: 15px; font-weight: 500; }
+.term-row-extra {
+  display: grid;
+  grid-template-columns: 1fr 90px 80px;
+  gap: 6px;
+  margin-top: 6px;
+}
+.term-row-extra input { font-size: 13px; padding: 6px 10px; }
+.term-row-extra .field-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.term-del {
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  align-self: center;
+}
+.term-del:hover { color: var(--red); background: rgba(255,107,107,.1); }
+
+.add-term-btn {
+  margin-top: 8px;
+  background: none;
+  color: var(--teal);
+  border: 1px dashed var(--teal);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  width: 100%;
+  transition: background .15s;
+}
+.add-term-btn:hover { background: rgba(0,212,170,.1); }
+
+/* Settings section */
+.settings-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.settings-row label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+.toggle-row label { font-size: 14px; color: var(--text); margin: 0; cursor: pointer; }
+input[type=checkbox] {
+  width: 18px; height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+#setup footer {
+  padding: 20px 28px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ─── Game (Show Term) Screen ──────────────────────────────────────────────── */
+#game {
+  background: radial-gradient(ellipse at top, #1e1040 0%, var(--bg) 70%);
+}
+
+#game header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.round-badge {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.standings-mini {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.standings-mini-item { text-align: center; }
+.standings-mini-name { font-size: 11px; color: var(--muted); }
+.standings-mini-score { font-size: 16px; font-weight: 700; }
+
+#game main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 24px 0;
+  gap: 24px;
+}
+
+.term-display {
+  text-align: center;
+}
+.term-label {
+  font-size: 14px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-bottom: 12px;
+}
+.term-text {
+  font-size: clamp(2.2rem, 6vw, 4.5rem);
+  font-weight: 800;
+  letter-spacing: -.01em;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+/* Timer */
+.timer-section {
+  width: 100%;
+  max-width: 700px;
+}
+.timer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.timer-label { font-size: 13px; color: var(--muted); }
+.timer-num {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--accent);
+  transition: color .3s;
+  font-variant-numeric: tabular-nums;
+}
+.timer-num.urgent { color: var(--red); }
+.timer-track {
+  height: 8px;
+  background: var(--surf2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.timer-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 1s linear, background .3s;
+}
+.timer-fill.urgent { background: var(--red); }
+
+/* Team input grid */
+.team-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 900px;
+}
+
+.team-input-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+}
+.team-input-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 8px;
+}
+.team-input-card input {
+  font-size: 20px;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+#game footer {
+  padding: 20px 28px;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+
+/* ─── Loading Screen ───────────────────────────────────────────────────────── */
+#loading {
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, #1e1040 0%, var(--bg) 70%);
+}
+.loading-inner { text-align: center; }
+.spinner {
+  width: 64px; height: 64px;
+  border: 5px solid var(--surf2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 24px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-title { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+.loading-sub { color: var(--muted); font-size: 16px; }
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+@keyframes dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+}
+
+/* ─── Results Screen ───────────────────────────────────────────────────────── */
+#results {
+  background: radial-gradient(ellipse at top, #1a0d30 0%, var(--bg) 60%);
+}
+#results header {
+  text-align: center;
+  padding: 24px 28px 0;
+}
+.results-round-label { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.results-term { font-size: 2rem; font-weight: 800; margin-top: 4px; }
+
+#results main {
+  flex: 1;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+}
+
+.score-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.score-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 18px;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity .4s ease, transform .4s ease;
+}
+.score-card.revealed { opacity: 1; transform: translateY(0); }
+
+.score-card-team { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.score-card-guess { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+.score-bar-track { height: 10px; background: var(--surf2); border-radius: 5px; overflow: hidden; margin-bottom: 10px; }
+.score-bar-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--teal));
+  border-radius: 5px;
+  transition: width 1.4s cubic-bezier(.25,.46,.45,.94);
+}
+.score-card-num {
+  font-size: 2.4rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.score-card-breakdown { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.bonus-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: rgba(255,215,0,.15);
+  color: var(--gold);
+  border: 1px solid rgba(255,215,0,.3);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Bonus reveal */
+.bonus-reveal {
+  background: rgba(255,215,0,.08);
+  border: 1px solid rgba(255,215,0,.25);
+  border-radius: var(--r);
+  padding: 16px 20px;
+  text-align: center;
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity .5s;
+}
+.bonus-reveal.show { opacity: 1; }
+.bonus-reveal span { font-size: 22px; }
+
+/* Error block */
+.error-block {
+  background: rgba(255,107,107,.08);
+  border: 1px solid rgba(255,107,107,.3);
+  border-radius: var(--r);
+  padding: 16px 20px;
+}
+.error-block p { color: var(--red); font-size: 14px; margin-bottom: 12px; }
+.override-inputs { display: flex; flex-direction: column; gap: 8px; }
+.override-row { display: flex; align-items: center; gap: 10px; }
+.override-row label { font-size: 14px; min-width: 100px; }
+.override-row input { max-width: 100px; }
+
+/* Standings table */
+.standings-table {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.standings-table table { width: 100%; border-collapse: collapse; }
+.standings-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  padding: 10px 16px;
+  text-align: left;
+  background: var(--surf2);
+  border-bottom: 1px solid var(--border);
+}
+.standings-table td { padding: 12px 16px; font-size: 16px; border-bottom: 1px solid var(--border); }
+.standings-table tr:last-child td { border-bottom: none; }
+.standings-table .score-cell { font-size: 20px; font-weight: 800; }
+.standings-table .round-cell { color: var(--teal); font-weight: 700; }
+.standings-table tr.top-team td:first-child { border-left: 3px solid var(--gold); }
+
+#results footer {
+  padding: 20px 28px;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+
+/* ─── Game Over Screen ─────────────────────────────────────────────────────── */
+#gameover {
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 30%, #2a1060 0%, var(--bg) 70%);
+  padding: 40px 24px;
+}
+.gameover-inner { max-width: 700px; width: 100%; text-align: center; }
+.gameover-title {
+  font-size: clamp(3rem, 10vw, 6rem);
+  font-weight: 900;
+  letter-spacing: -.02em;
+  background: linear-gradient(90deg, var(--accent), var(--teal));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+.gameover-sub { color: var(--muted); font-size: 18px; margin-bottom: 36px; }
+
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+.podium-slot {
+  background: var(--surf);
+  border-radius: var(--r) var(--r) 0 0;
+  padding: 16px 20px;
+  min-width: 130px;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity .5s, transform .5s;
+}
+.podium-slot.revealed { opacity: 1; transform: translateY(0); }
+.podium-slot-1 { border-top: 3px solid var(--gold); min-height: 160px; display: flex; flex-direction: column; justify-content: flex-end; }
+.podium-slot-2 { border-top: 3px solid var(--silver); min-height: 120px; display: flex; flex-direction: column; justify-content: flex-end; }
+.podium-slot-3 { border-top: 3px solid var(--bronze); min-height: 90px; display: flex; flex-direction: column; justify-content: flex-end; }
+.podium-medal { font-size: 2rem; margin-bottom: 6px; }
+.podium-name { font-size: 18px; font-weight: 800; }
+.podium-score { font-size: 24px; font-weight: 900; margin-top: 4px; }
+.podium-slot-1 .podium-score { color: var(--gold); }
+.podium-slot-2 .podium-score { color: var(--silver); }
+.podium-slot-3 .podium-score { color: var(--bronze); }
+
+.final-table {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-bottom: 32px;
+  text-align: left;
+}
+.final-table table { width: 100%; border-collapse: collapse; }
+.final-table th {
+  background: var(--surf2);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.final-table td { padding: 14px 16px; font-size: 17px; border-bottom: 1px solid var(--border); }
+.final-table tr:last-child td { border-bottom: none; }
+.final-table .place-cell { font-size: 20px; }
+.final-table .score-cell { font-size: 22px; font-weight: 900; }
+.final-table tr:first-child td { color: var(--gold); }
+
+.gameover-buttons { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SETUP SCREEN
+═══════════════════════════════════════════════════════════════════════════════ -->
+<div id="setup" class="screen active">
+  <header>
+    <div>
+      <h1>TrendGame</h1>
+      <div class="sub">Google Trends party game — set up your game below</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="setup-columns">
+
+      <!-- Teams panel -->
+      <section class="panel">
+        <div class="panel-title">Teams</div>
+        <div class="team-list" id="team-list"></div>
+        <button class="add-team-btn" id="add-team-btn">+ Add Team</button>
+      </section>
+
+      <!-- Terms panel -->
+      <section class="panel">
+        <div class="panel-title">Rounds / Terms</div>
+        <div class="terms-toolbar">
+          <select id="preset-select" style="max-width:180px">
+            <option value="">— Load preset —</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" id="load-preset-btn">Load</button>
+          <button class="btn btn-secondary btn-sm" id="save-preset-btn">Save as...</button>
+          <span class="count" id="term-count"></span>
+        </div>
+        <div class="term-list" id="term-list"></div>
+        <button class="add-term-btn" id="add-term-btn">+ Add Round</button>
+      </section>
+
+    </div>
+
+    <!-- Settings -->
+    <section class="panel">
+      <div class="panel-title">Settings</div>
+      <div class="settings-row">
+        <div>
+          <label>Region</label>
+          <select id="setting-geo">
+            <option value="US">United States</option>
+            <option value="">Worldwide</option>
+            <option value="GB">United Kingdom</option>
+            <option value="CA">Canada</option>
+            <option value="AU">Australia</option>
+            <option value="DE">Germany</option>
+            <option value="FR">France</option>
+            <option value="BR">Brazil</option>
+            <option value="IN">India</option>
+            <option value="JP">Japan</option>
+          </select>
+        </div>
+        <div>
+          <label>Date Range</label>
+          <select id="setting-date">
+            <option value="today 12-m">Last 12 months</option>
+            <option value="today 3-m">Last 3 months</option>
+            <option value="today 1-m">Last 30 days</option>
+            <option value="now 7-d">Last 7 days</option>
+            <option value="today 5-y">Last 5 years</option>
+            <option value="2024-01-01 2024-12-31">Year 2024</option>
+            <option value="2023-01-01 2023-12-31">Year 2023</option>
+          </select>
+        </div>
+        <div>
+          <label>Timer (seconds)</label>
+          <input type="number" id="setting-timer" min="10" max="300" value="60">
+        </div>
+        <div class="toggle-row">
+          <input type="checkbox" id="setting-first-counts" checked>
+          <label for="setting-first-counts">First round counts for points</label>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <button class="btn btn-primary" id="start-btn">Start Game →</button>
+  </footer>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     GAME (SHOW TERM) SCREEN
+═══════════════════════════════════════════════════════════════════════════════ -->
+<div id="game" class="screen">
+  <header>
+    <div class="round-badge">Round <span id="g-round">1</span> / <span id="g-total">5</span></div>
+    <div class="standings-mini" id="g-standings-mini"></div>
+    <button class="btn btn-secondary btn-sm" id="g-reset-btn">↩ Setup</button>
+  </header>
+
+  <main>
+    <div class="term-display">
+      <div class="term-label">What's popular on Google?</div>
+      <div class="term-text" id="g-term-text">—</div>
+    </div>
+
+    <div class="timer-section" id="timer-section">
+      <div class="timer-header">
+        <span class="timer-label">Time remaining</span>
+        <span class="timer-num" id="timer-num">60</span>
+      </div>
+      <div class="timer-track">
+        <div class="timer-fill" id="timer-fill"></div>
+      </div>
+    </div>
+
+    <div class="team-inputs-grid" id="team-inputs-grid"></div>
+  </main>
+
+  <footer>
+    <button class="btn btn-secondary btn-sm" id="skip-timer-btn">Skip Timer</button>
+    <button class="btn btn-primary" id="submit-btn">Submit All Guesses →</button>
+  </footer>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     LOADING SCREEN
+═══════════════════════════════════════════════════════════════════════════════ -->
+<div id="loading" class="screen">
+  <div class="loading-inner">
+    <div class="spinner"></div>
+    <div class="loading-title">Checking Google Trends<span class="loading-dots"></span></div>
+    <div class="loading-sub">Usually takes 5–15 seconds</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     RESULTS SCREEN
+═══════════════════════════════════════════════════════════════════════════════ -->
+<div id="results" class="screen">
+  <header>
+    <div class="results-round-label">Round <span id="r-round-num">1</span> Results</div>
+    <div class="results-term" id="r-term-text">—</div>
+  </header>
+
+  <main>
+    <!-- Error block (Google Trends failed) -->
+    <div class="error-block" id="error-block" style="display:none">
+      <p id="error-msg"></p>
+      <div>
+        <p style="font-size:14px;margin-bottom:10px;color:var(--muted)">
+          Enter scores manually (0–100) or
+          <a href="https://trends.google.com/trends/explore" target="_blank"
+             style="color:var(--accent)">open Google Trends</a>:
+        </p>
+        <div class="override-inputs" id="override-inputs"></div>
+        <div style="margin-top:12px;display:flex;gap:10px">
+          <button class="btn btn-secondary btn-sm" id="retry-btn">↺ Retry Google Trends</button>
+          <button class="btn btn-primary" id="apply-override-btn">Apply Scores →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Score cards -->
+    <div class="score-cards" id="r-score-cards"></div>
+
+    <!-- Bonus reveal -->
+    <div class="bonus-reveal" id="r-bonus-reveal"></div>
+
+    <!-- Standings -->
+    <div class="standings-table" id="r-standings"></div>
+  </main>
+
+  <footer>
+    <button class="btn btn-primary" id="next-btn">Next Round →</button>
+  </footer>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     GAME OVER SCREEN
+═══════════════════════════════════════════════════════════════════════════════ -->
+<div id="gameover" class="screen">
+  <div class="gameover-inner">
+    <div class="gameover-title">GAME OVER</div>
+    <div class="gameover-sub">Final Scores</div>
+    <div class="podium" id="go-podium"></div>
+    <div class="final-table" id="go-table"></div>
+    <div class="gameover-buttons">
+      <button class="btn btn-secondary" id="go-setup-btn">Back to Setup</button>
+      <button class="btn btn-primary" id="go-again-btn">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let serverState = null;
+let timerInterval = null;
+let timerRemaining = 0;
+let timerMax = 60;
+let pollTimer = null;
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+async function api(path, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== null) opts.body = JSON.stringify(body);
+  const res = await fetch('/api/' + path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '') + ' show';
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function animateCount(el, to, duration = 1400) {
+  const start = performance.now();
+  const from = parseInt(el.textContent) || 0;
+  const update = (now) => {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(from + (to - from) * eased);
+    if (t < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── Setup Screen ──────────────────────────────────────────────────────────────
+function renderTeamList(teams) {
+  const list = document.getElementById('team-list');
+  list.innerHTML = '';
+  teams.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'team-row';
+    row.innerHTML = `
+      <span class="team-num">${i + 1}</span>
+      <input type="text" value="${t.name}" placeholder="Team name" data-i="${i}" class="team-name-input">
+      <button class="del-btn btn" data-i="${i}" title="Remove">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function getTeamsFromUI() {
+  return [...document.querySelectorAll('.team-name-input')].map(i => i.value.trim()).filter(Boolean);
+}
+
+function renderTermList(terms) {
+  const list = document.getElementById('term-list');
+  list.innerHTML = '';
+  terms.forEach((term, i) => {
+    const row = document.createElement('div');
+    row.className = 'term-row';
+    row.innerHTML = `
+      <div>
+        <div class="term-row-main">
+          <input type="text" value="${esc(term.text || '')}" placeholder="Topic shown to players" class="term-text-input" data-i="${i}">
+        </div>
+        <div class="term-row-extra">
+          <div>
+            <div class="field-label">Bonus term (exact match)</div>
+            <input type="text" value="${esc(term.bonus_term || '')}" placeholder="e.g. pepperoni" class="term-bonus-input" data-i="${i}">
+          </div>
+          <div>
+            <div class="field-label">Bonus pts</div>
+            <input type="number" value="${term.bonus_points || 0}" min="0" class="term-bp-input" data-i="${i}">
+          </div>
+          <div>
+            <div class="field-label">Multiplier</div>
+            <input type="number" value="${term.multiplier || 1}" min="1" max="10" class="term-mult-input" data-i="${i}">
+          </div>
+        </div>
+      </div>
+      <button class="term-del btn" data-i="${i}" title="Remove">×</button>
+    `;
+    list.appendChild(row);
+  });
+  document.getElementById('term-count').textContent = `${terms.length} round${terms.length !== 1 ? 's' : ''}`;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function getTermsFromUI() {
+  const texts = [...document.querySelectorAll('.term-text-input')].map(i => i.value.trim());
+  const bonuses = [...document.querySelectorAll('.term-bonus-input')].map(i => i.value.trim());
+  const bps = [...document.querySelectorAll('.term-bp-input')].map(i => parseInt(i.value) || 0);
+  const mults = [...document.querySelectorAll('.term-mult-input')].map(i => parseInt(i.value) || 1);
+  return texts.map((text, i) => ({
+    text, bonus_term: bonuses[i], bonus_points: bps[i], multiplier: mults[i]
+  })).filter(t => t.text);
+}
+
+async function loadPresets() {
+  const { presets } = await api('presets');
+  const sel = document.getElementById('preset-select');
+  // Keep the placeholder
+  while (sel.options.length > 1) sel.remove(1);
+  presets.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+async function initSetup(state) {
+  // Render teams
+  let teams = state.teams.length ? state.teams : [
+    {name:'Team 1'},{name:'Team 2'},{name:'Team 3'}
+  ];
+  renderTeamList(teams);
+
+  // Render terms
+  renderTermList(state.terms || []);
+
+  // Settings
+  document.getElementById('setting-geo').value = state.settings.geo || 'US';
+  document.getElementById('setting-date').value = state.settings.date_range || 'today 12-m';
+  document.getElementById('setting-timer').value = state.settings.timer || 60;
+  document.getElementById('setting-first-counts').checked = state.settings.first_round_counts !== false;
+
+  await loadPresets();
+}
+
+// Setup event listeners
+document.getElementById('add-team-btn').addEventListener('click', () => {
+  const names = getTeamsFromUI();
+  if (names.length >= 8) { showToast('Maximum 8 teams', true); return; }
+  names.push(`Team ${names.length + 1}`);
+  renderTeamList(names.map(n => ({name: n})));
+});
+
+document.getElementById('team-list').addEventListener('click', e => {
+  const btn = e.target.closest('.del-btn');
+  if (!btn) return;
+  const names = getTeamsFromUI();
+  if (names.length <= 2) { showToast('Need at least 2 teams', true); return; }
+  names.splice(parseInt(btn.dataset.i), 1);
+  renderTeamList(names.map(n => ({name: n})));
+});
+
+document.getElementById('add-term-btn').addEventListener('click', () => {
+  const terms = getTermsFromUI();
+  terms.push({ text: '', bonus_term: '', bonus_points: 0, multiplier: 1 });
+  renderTermList(terms);
+});
+
+document.getElementById('term-list').addEventListener('click', e => {
+  const btn = e.target.closest('.term-del');
+  if (!btn) return;
+  const terms = getTermsFromUI();
+  terms.splice(parseInt(btn.dataset.i), 1);
+  renderTermList(terms);
+});
+
+document.getElementById('load-preset-btn').addEventListener('click', async () => {
+  const name = document.getElementById('preset-select').value;
+  if (!name) { showToast('Choose a preset first', true); return; }
+  try {
+    const data = await api(`preset/${encodeURIComponent(name)}`);
+    renderTermList(data.terms || []);
+    if (data.settings) {
+      if (data.settings.geo) document.getElementById('setting-geo').value = data.settings.geo;
+      if (data.settings.date_range) document.getElementById('setting-date').value = data.settings.date_range;
+      if (data.settings.timer) document.getElementById('setting-timer').value = data.settings.timer;
+    }
+    showToast(`Loaded "${name}"`);
+  } catch(err) {
+    showToast('Could not load preset', true);
+  }
+});
+
+document.getElementById('save-preset-btn').addEventListener('click', async () => {
+  const name = prompt('Save preset as:');
+  if (!name || !name.trim()) return;
+  const safeName = name.trim().replace(/[^a-zA-Z0-9 _-]/g, '');
+  const terms = getTermsFromUI();
+  const settings = {
+    geo: document.getElementById('setting-geo').value,
+    date_range: document.getElementById('setting-date').value,
+    timer: parseInt(document.getElementById('setting-timer').value) || 60,
+  };
+  try {
+    await api(`preset/${encodeURIComponent(safeName)}`, 'POST', { name: safeName, settings, terms });
+    await loadPresets();
+    showToast(`Saved as "${safeName}"`);
+  } catch(err) {
+    showToast('Could not save preset', true);
+  }
+});
+
+document.getElementById('start-btn').addEventListener('click', async () => {
+  const teams = getTeamsFromUI();
+  const terms = getTermsFromUI();
+  const settings = {
+    geo: document.getElementById('setting-geo').value,
+    date_range: document.getElementById('setting-date').value,
+    timer: parseInt(document.getElementById('setting-timer').value) || 60,
+    first_round_counts: document.getElementById('setting-first-counts').checked,
+  };
+
+  if (teams.length < 2) { showToast('Add at least 2 teams', true); return; }
+  if (terms.length === 0) { showToast('Add at least 1 round', true); return; }
+
+  try {
+    await api('teams', 'POST', { names: teams });
+    await api('terms', 'POST', { terms });
+    await api('settings', 'POST', settings);
+    const result = await api('start', 'POST');
+    if (result.error) { showToast(result.error, true); return; }
+    const state = await api('state');
+    renderGameScreen(state);
+    showScreen('game');
+  } catch(err) {
+    showToast(err.message || 'Could not start game', true);
+  }
+});
+
+// ── Game Screen ───────────────────────────────────────────────────────────────
+function renderGameScreen(state) {
+  const termDef = state.terms[state.round];
+  document.getElementById('g-round').textContent = state.round + 1;
+  document.getElementById('g-total').textContent = state.terms.length;
+  document.getElementById('g-term-text').textContent = termDef ? termDef.text : '—';
+
+  // Mini standings
+  const mini = document.getElementById('g-standings-mini');
+  mini.innerHTML = state.teams
+    .slice()
+    .sort((a, b) => b.score - a.score)
+    .map(t => `<div class="standings-mini-item">
+      <div class="standings-mini-name">${esc(t.name)}</div>
+      <div class="standings-mini-score">${t.score}</div>
+    </div>`).join('');
+
+  // Team inputs
+  const grid = document.getElementById('team-inputs-grid');
+  grid.innerHTML = '';
+  state.teams.forEach(team => {
+    const card = document.createElement('div');
+    card.className = 'team-input-card';
+    card.innerHTML = `
+      <div class="team-input-name">${esc(team.name)}</div>
+      <input type="text" placeholder="Their guess..." class="team-guess-input"
+             data-team="${esc(team.name)}" autocomplete="off" spellcheck="false">
+    `;
+    grid.appendChild(card);
+  });
+
+  // Timer
+  timerMax = parseInt(state.settings.timer) || 60;
+  timerRemaining = timerMax;
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  updateTimerUI(timerRemaining, timerMax);
+  timerInterval = setInterval(() => {
+    timerRemaining--;
+    updateTimerUI(timerRemaining, timerMax);
+    if (timerRemaining <= 0) {
+      clearInterval(timerInterval);
+      document.getElementById('submit-btn').classList.add('pulse');
+    }
+  }, 1000);
+}
+
+function updateTimerUI(remaining, max) {
+  const numEl = document.getElementById('timer-num');
+  const fillEl = document.getElementById('timer-fill');
+  const urgent = remaining <= 5;
+  numEl.textContent = Math.max(0, remaining);
+  numEl.className = 'timer-num' + (urgent ? ' urgent' : '');
+  const pct = Math.max(0, (remaining / max) * 100);
+  fillEl.style.width = pct + '%';
+  fillEl.className = 'timer-fill' + (urgent ? ' urgent' : '');
+}
+
+document.getElementById('skip-timer-btn').addEventListener('click', () => {
+  clearInterval(timerInterval);
+  timerRemaining = 0;
+  updateTimerUI(0, timerMax);
+});
+
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  clearInterval(timerInterval);
+  const guesses = {};
+  document.querySelectorAll('.team-guess-input').forEach(inp => {
+    guesses[inp.dataset.team] = inp.value.trim();
+  });
+  const empty = Object.values(guesses).filter(v => !v);
+  if (empty.length && !confirm(`${empty.length} team(s) have no guess. Submit anyway?`)) return;
+
+  try {
+    await api('submit', 'POST', { guesses });
+    showScreen('loading');
+    pollForResults();
+  } catch(err) {
+    showToast(err.message, true);
+  }
+});
+
+document.getElementById('g-reset-btn').addEventListener('click', () => {
+  if (!confirm('Return to setup? Current game will be paused.')) return;
+  clearInterval(timerInterval);
+  showScreen('setup');
+});
+
+function pollForResults() {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    try {
+      const state = await api('state');
+      if (state.phase === 'show_results') {
+        renderResults(state);
+        showScreen('results');
+      } else if (state.phase === 'loading') {
+        pollForResults(); // Keep polling
+      } else {
+        handlePhase(state);
+      }
+    } catch(e) {
+      pollForResults();
+    }
+  }, 600);
+}
+
+// ── Results Screen ────────────────────────────────────────────────────────────
+function renderResults(state) {
+  const termDef = state.terms[state.round];
+  document.getElementById('r-round-num').textContent = state.round + 1;
+  document.getElementById('r-term-text').textContent = termDef ? termDef.text : '—';
+
+  // Error handling
+  const errBlock = document.getElementById('error-block');
+  if (state.error) {
+    document.getElementById('error-msg').textContent = '⚠ ' + state.error;
+    // Override inputs
+    const overrideDiv = document.getElementById('override-inputs');
+    overrideDiv.innerHTML = state.teams.map(t =>
+      `<div class="override-row">
+        <label>${esc(t.name)}</label>
+        <input type="number" min="0" max="100" value="0"
+               class="override-score" data-team="${esc(t.name)}" placeholder="0">
+      </div>`
+    ).join('');
+    errBlock.style.display = 'block';
+  } else {
+    errBlock.style.display = 'none';
+  }
+
+  // Score cards (hidden, then staggered reveal)
+  const cards = document.getElementById('r-score-cards');
+  cards.innerHTML = '';
+  state.teams.forEach((team, i) => {
+    const score = team.final_round_score || 0;
+    const raw = team.round_score || 0;
+    const mult = termDef ? (parseInt(termDef.multiplier) || 1) : 1;
+    const bonusPts = termDef ? (parseInt(termDef.bonus_points) || 0) : 0;
+    const breakdown = mult > 1 || team.got_bonus
+      ? `${raw} × ${mult}${team.got_bonus ? ` + ${bonusPts} bonus` : ''}`
+      : null;
+
+    const card = document.createElement('div');
+    card.className = 'score-card';
+    card.innerHTML = `
+      <div class="score-card-team">${esc(team.name)}</div>
+      <div class="score-card-guess">"${esc(team.current_term || '—')}"</div>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:0%"></div></div>
+      <div class="score-card-num">0</div>
+      ${breakdown ? `<div class="score-card-breakdown">${breakdown}</div>` : ''}
+      ${team.got_bonus ? `<div class="bonus-badge">⭐ Bonus! +${bonusPts}</div>` : ''}
+    `;
+    cards.appendChild(card);
+
+    // Staggered reveal animation
+    setTimeout(() => {
+      card.classList.add('revealed');
+      setTimeout(() => {
+        card.querySelector('.score-bar-fill').style.width = score + '%';
+        animateCount(card.querySelector('.score-card-num'), score);
+      }, 200);
+    }, i * 300);
+  });
+
+  // Bonus term reveal
+  const bonusReveal = document.getElementById('r-bonus-reveal');
+  const bonusTerm = termDef && termDef.bonus_term;
+  if (bonusTerm) {
+    bonusReveal.innerHTML = `Bonus term: <span>"${esc(bonusTerm)}"</span> — ${termDef.bonus_points} extra points for exact match`;
+    setTimeout(() => bonusReveal.classList.add('show'),
+               state.teams.length * 300 + 600);
+  } else {
+    bonusReveal.className = 'bonus-reveal';
+    bonusReveal.innerHTML = '';
+  }
+
+  // Standings
+  const isLast = state.round >= state.terms.length - 1;
+  const thisRoundScores = {};
+  state.teams.forEach(t => { thisRoundScores[t.name] = t.final_round_score || 0; });
+
+  // Show projected scores (current + this round)
+  const projected = state.teams.map(t => ({
+    name: t.name,
+    prev: t.score,
+    round: t.final_round_score || 0,
+    total: t.score + (t.final_round_score || 0),
+  })).sort((a, b) => b.total - a.total);
+
+  const standingsEl = document.getElementById('r-standings');
+  standingsEl.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Team</th>
+        <th>This Round</th>
+        <th>Running Total</th>
+      </tr></thead>
+      <tbody>
+        ${projected.map((t, i) => `
+          <tr class="${i === 0 ? 'top-team' : ''}">
+            <td>${esc(t.name)}</td>
+            <td class="round-cell">+${t.round}</td>
+            <td class="score-cell">${t.total}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+  // Next / finish button
+  const nextBtn = document.getElementById('next-btn');
+  nextBtn.textContent = isLast ? 'See Final Scores →' : `Next Round (${state.round + 2}/${state.terms.length}) →`;
+}
+
+document.getElementById('retry-btn').addEventListener('click', async () => {
+  const guesses = {};
+  // Re-use current guesses from server state
+  const state = await api('state');
+  state.teams.forEach(t => { guesses[t.name] = t.current_term; });
+  await api('submit', 'POST', { guesses });
+  showScreen('loading');
+  pollForResults();
+});
+
+document.getElementById('apply-override-btn').addEventListener('click', async () => {
+  const scores = {};
+  document.querySelectorAll('.override-score').forEach(inp => {
+    scores[inp.dataset.team] = parseInt(inp.value) || 0;
+  });
+  try {
+    await api('override-scores', 'POST', { scores });
+    const state = await api('state');
+    renderResults(state);
+  } catch(err) {
+    showToast(err.message, true);
+  }
+});
+
+document.getElementById('next-btn').addEventListener('click', async () => {
+  try {
+    await api('next', 'POST');
+    const state = await api('state');
+    handlePhase(state);
+  } catch(err) {
+    showToast(err.message, true);
+  }
+});
+
+// ── Game Over Screen ──────────────────────────────────────────────────────────
+function renderGameOver(state) {
+  const sorted = state.teams.slice().sort((a, b) => b.score - a.score);
+
+  // Podium (top 3)
+  const MEDALS = ['🥇', '🥈', '🥉'];
+  const podium = document.getElementById('go-podium');
+  podium.innerHTML = '';
+
+  // Show in order: 3rd, 2nd, 1st (dramatic reveal)
+  const slots = [
+    sorted[2], // 3rd (or null)
+    sorted[0], // 1st
+    sorted[1], // 2nd (or null)
+  ].filter(Boolean);
+
+  const positions = sorted.length >= 3
+    ? [2, 0, 1]  // 3rd, 1st, 2nd visual positions
+    : sorted.length === 2 ? [0, 1] : [0];
+
+  sorted.slice(0, 3).forEach((team, rank) => {
+    const slot = document.createElement('div');
+    slot.className = `podium-slot podium-slot-${rank + 1}`;
+    slot.innerHTML = `
+      <div class="podium-medal">${MEDALS[rank] || ''}</div>
+      <div class="podium-name">${esc(team.name)}</div>
+      <div class="podium-score">${team.score}</div>
+    `;
+    // Order: 3rd, 1st, 2nd in DOM for visual podium height
+    podium.appendChild(slot);
+  });
+
+  // Animate podium slots
+  const slotEls = podium.querySelectorAll('.podium-slot');
+  // Reveal 3rd → 2nd → 1st with delay
+  [2, 1, 0].forEach((idx, delay) => {
+    if (slotEls[idx]) {
+      setTimeout(() => slotEls[idx].classList.add('revealed'), delay * 600 + 300);
+    }
+  });
+
+  // Full leaderboard table
+  const table = document.getElementById('go-table');
+  table.innerHTML = `
+    <table>
+      <thead><tr><th>#</th><th>Team</th><th>Score</th></tr></thead>
+      <tbody>
+        ${sorted.map((t, i) => `
+          <tr>
+            <td class="place-cell">${['🥇','🥈','🥉'][i] || (i+1)}</td>
+            <td>${esc(t.name)}</td>
+            <td class="score-cell">${t.score}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+document.getElementById('go-again-btn').addEventListener('click', async () => {
+  await api('reset', 'POST');
+  const state = await api('state');
+  await initSetup(state);
+  showScreen('setup');
+});
+
+document.getElementById('go-setup-btn').addEventListener('click', async () => {
+  await api('reset', 'POST');
+  const state = await api('state');
+  await initSetup(state);
+  showScreen('setup');
+});
+
+// ── Phase Router ──────────────────────────────────────────────────────────────
+function handlePhase(state) {
+  serverState = state;
+  switch (state.phase) {
+    case 'setup':
+      initSetup(state);
+      showScreen('setup');
+      break;
+    case 'show_term':
+      renderGameScreen(state);
+      showScreen('game');
+      break;
+    case 'loading':
+      showScreen('loading');
+      pollForResults();
+      break;
+    case 'show_results':
+      renderResults(state);
+      showScreen('results');
+      break;
+    case 'game_over':
+      renderGameOver(state);
+      showScreen('gameover');
+      break;
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const state = await api('state');
+    await initSetup(state);
+    // If server already in a game (page reload), resume
+    if (state.phase !== 'setup') {
+      handlePhase(state);
+    } else {
+      showScreen('setup');
+    }
+  } catch(e) {
+    showToast('Could not connect to server', true);
+  }
+})();
+</script>
+</body>
+</html>
