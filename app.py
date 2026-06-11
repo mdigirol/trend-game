@@ -545,7 +545,7 @@ def _check_serpapi_key(key):
         data = r.json()
         return {
             "ok": True,
-            "searches_left": data.get("searches_left", "?"),
+            "searches_left": data.get("plan_searches_left", data.get("total_searches_left", "?")),
             "plan": data.get("plan_name", ""),
         }
     except Exception as e:
