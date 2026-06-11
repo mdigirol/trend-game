@@ -16,8 +16,6 @@ pyinstaller \
   --clean \
   --add-data "templates:templates" \
   --add-data "terms:terms" \
-  --hidden-import "pytrends.request" \
-  --hidden-import "pandas" \
   --hidden-import "requests" \
   launcher.py
 

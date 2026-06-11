@@ -1,2 +1,2 @@
 Flask>=2.3
-pytrends>=4.9
+requests>=2.28

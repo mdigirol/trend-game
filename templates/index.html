@@ -282,6 +282,39 @@ input[type=checkbox] {
   cursor: pointer;
 }
 
+.api-key-row {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.api-key-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.api-key-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.api-key-status.set { background: rgba(74,222,128,.15); color: var(--green); }
+.api-key-status.unset { background: rgba(255,107,107,.12); color: #ff9a9a; }
+.api-key-input-row {
+  display: flex;
+  gap: 8px;
+}
+.api-key-input-row input { font-family: monospace; font-size: 13px; }
+.api-key-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 #setup footer {
   padding: 20px 28px;
   border-top: 1px solid var(--border);
@@ -728,6 +761,18 @@ input[type=checkbox] {
           <label for="setting-first-counts">First round counts for points</label>
         </div>
       </div>
+
+      <div class="api-key-row">
+        <div class="api-key-label">
+          <span>SerpAPI Key</span>
+          <span class="api-key-status" id="api-key-status"></span>
+        </div>
+        <div class="api-key-input-row">
+          <input type="password" id="setting-serpapi-key" placeholder="Paste your SerpAPI key for reliable scores" autocomplete="off" spellcheck="false">
+          <button class="btn btn-secondary btn-sm" id="save-key-btn" style="white-space:nowrap">Save Key</button>
+        </div>
+        <div class="api-key-hint">Without a key, scores come directly from Google Trends (may be rate-limited). Get a free key at <strong>serpapi.com</strong> — 250 searches/month free.</div>
+      </div>
     </section>
   </main>
 
@@ -992,6 +1037,24 @@ async function initSetup(state) {
   document.getElementById('setting-first-counts').checked = state.settings.first_round_counts !== false;
 
   await loadPresets();
+  await loadApiKeyStatus();
+}
+
+async function loadApiKeyStatus() {
+  try {
+    const cfg = await api('config');
+    const statusEl = document.getElementById('api-key-status');
+    const input = document.getElementById('setting-serpapi-key');
+    if (cfg.serpapi_key_set) {
+      statusEl.textContent = '✓ Active';
+      statusEl.className = 'api-key-status set';
+      // Show masked key so user knows one is saved; let them re-enter to change
+      input.placeholder = cfg.serpapi_key.slice(0, 8) + '••••••••••••••••••••••••';
+    } else {
+      statusEl.textContent = 'Not set';
+      statusEl.className = 'api-key-status unset';
+    }
+  } catch(e) { /* non-fatal */ }
 }
 
 // Setup event listeners
@@ -1039,6 +1102,18 @@ document.getElementById('load-preset-btn').addEventListener('click', async () =>
     showToast(`Loaded "${name}"`);
   } catch(err) {
     showToast('Could not load preset', true);
+  }
+});
+
+document.getElementById('save-key-btn').addEventListener('click', async () => {
+  const key = document.getElementById('setting-serpapi-key').value.trim();
+  try {
+    await api('config', 'POST', { serpapi_key: key });
+    document.getElementById('setting-serpapi-key').value = '';
+    await loadApiKeyStatus();
+    showToast(key ? 'SerpAPI key saved' : 'Key removed');
+  } catch(e) {
+    showToast('Could not save key', true);
   }
 });
 

@@ -36,6 +36,33 @@ game = {
     "error": None,
 }
 
+# ─── Config (persists SerpAPI key and other user prefs) ────────────────────────
+
+_app_support = os.path.join(
+    os.path.expanduser("~"), "Library", "Application Support", "TrendGame"
+)
+CONFIG_PATH = Path(os.environ.get("TRENDGAME_CONFIG", os.path.join(_app_support, "config.json")))
+
+
+def load_config():
+    try:
+        if CONFIG_PATH.exists():
+            return json.loads(CONFIG_PATH.read_text())
+    except Exception:
+        pass
+    return {}
+
+
+def save_config(data):
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(data, indent=2))
+
+
+def get_serpapi_key():
+    """Env var takes precedence (dev override), then config file."""
+    return os.environ.get("SERPAPI_KEY", "").strip() or load_config().get("serpapi_key", "").strip()
+
+
 # ─── Preset Management ─────────────────────────────────────────────────────────
 
 TERMS_DIR = Path(_terms_dir)
@@ -60,74 +87,238 @@ def save_preset(name, data):
 
 
 # ─── Google Trends ─────────────────────────────────────────────────────────────
+# Direct requests implementation — no pytrends dependency.
+# SerpAPI is used instead when SERPAPI_KEY is set in the environment.
 
-# Pytrends reuses a cookie/session across calls in the same process.
-# Creating it once avoids repeated cookie-fetch round trips.
-_pytrends_instance = None
-_pytrends_lock = threading.Lock()
+import hashlib
+import requests as _requests
 
-def _get_pytrends():
-    global _pytrends_instance
-    from pytrends.request import TrendReq
-    with _pytrends_lock:
-        if _pytrends_instance is None:
-            _pytrends_instance = TrendReq(
-                hl="en-US",
-                tz=360,
-                timeout=(10, 35),
-                requests_args={
-                    "headers": {
-                        "User-Agent": (
-                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/124.0.0.0 Safari/537.36"
-                        ),
-                        "Accept-Language": "en-US,en;q=0.9",
-                    }
-                },
-            )
-        return _pytrends_instance
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://trends.google.com/",
+}
 
+_session: "_requests.Session | None" = None
+_session_lock = threading.Lock()
+
+CACHE_DIR = Path(os.environ.get(
+    "TRENDGAME_CACHE",
+    os.path.join(os.path.expanduser("~"), "Library", "Application Support", "TrendGame", "cache"),
+))
+CACHE_TTL = 86400  # 24 hours
+
+
+# ── Cache helpers ──────────────────────────────────────────────────────────────
+
+def _cache_key(terms, geo, timeframe):
+    payload = json.dumps({"t": sorted(t.lower() for t in terms), "g": geo, "f": timeframe})
+    return hashlib.md5(payload.encode()).hexdigest()
+
+
+def _cache_load(key):
+    path = CACHE_DIR / f"{key}.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+        if time.time() - data["ts"] < CACHE_TTL:
+            return data["scores"]
+        path.unlink(missing_ok=True)
+    except Exception:
+        pass
+    return None
+
+
+def _cache_save(key, scores):
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    (CACHE_DIR / f"{key}.json").write_text(
+        json.dumps({"ts": time.time(), "scores": scores})
+    )
+
+
+# ── Session management ─────────────────────────────────────────────────────────
+
+def _new_session():
+    s = _requests.Session()
+    s.headers.update(_HEADERS)
+    # Pre-set GDPR consent cookie so Google doesn't redirect us
+    s.cookies.set("CONSENT", "YES+cb", domain=".google.com")
+    try:
+        s.get("https://trends.google.com/", timeout=10)
+        time.sleep(1.0)
+    except Exception:
+        pass
+    return s
+
+
+def _get_session(force=False):
+    global _session
+    with _session_lock:
+        if _session is None or force:
+            _session = _new_session()
+        return _session
+
+
+# ── Direct Google Trends API ───────────────────────────────────────────────────
+
+def _fetch_direct(terms, geo, timeframe):
+    """
+    Calls the undocumented Google Trends JSON API directly.
+    Two-step: explore (gets widget token) → widgetdata/multiline (gets scores).
+    """
+    sess = _get_session()
+
+    # Step 1 — explore: get the widget token for our keyword set
+    req_body = json.dumps({
+        "comparisonItem": [
+            {"keyword": t, "geo": geo, "time": timeframe} for t in terms
+        ],
+        "category": 0,
+        "property": "",
+    })
+    time.sleep(1.5)
+    r1 = sess.get(
+        "https://trends.google.com/trends/api/explore",
+        params={"hl": "en-US", "tz": "360", "req": req_body},
+        timeout=20,
+    )
+    r1.raise_for_status()
+    raw1 = r1.text
+    if raw1.startswith(")]}'"):
+        raw1 = raw1[4:].strip()
+    widgets = json.loads(raw1).get("widgets", [])
+    ts_widget = next((w for w in widgets if w.get("id") == "TIMESERIES"), None)
+    if not ts_widget:
+        return [0] * len(terms)
+
+    # Step 2 — widgetdata: get the actual time series
+    time.sleep(1.0)
+    r2 = sess.get(
+        "https://trends.google.com/trends/api/widgetdata/multiline",
+        params={
+            "hl": "en-US",
+            "tz": "360",
+            "req": json.dumps(ts_widget.get("request", {})),
+            "token": ts_widget.get("token", ""),
+        },
+        timeout=20,
+    )
+    r2.raise_for_status()
+    raw2 = r2.text
+    if raw2.startswith(")]}'"):
+        raw2 = raw2[4:].strip()
+    timeline = json.loads(raw2).get("default", {}).get("timelineData", [])
+    if not timeline:
+        return [0] * len(terms)
+
+    sums = [0] * len(terms)
+    counts = [0] * len(terms)
+    for point in timeline:
+        for i, v in enumerate(point.get("value", [])):
+            if i < len(terms):
+                sums[i] += int(v)
+                counts[i] += 1
+    return [round(sums[i] / counts[i]) if counts[i] else 0 for i in range(len(terms))]
+
+
+# ── SerpAPI fallback ───────────────────────────────────────────────────────────
+
+def _fetch_serpapi(terms, geo, timeframe, api_key):
+    r = _requests.get(
+        "https://serpapi.com/search",
+        params={
+            "engine": "google_trends",
+            "q": ",".join(terms),
+            "date": timeframe,
+            "geo": geo,
+            "data_type": "TIMESERIES",
+            "api_key": api_key,
+        },
+        timeout=30,
+    )
+    r.raise_for_status()
+    data = r.json()
+
+    # SerpAPI may return an 'averages' shortcut
+    averages = data.get("interest_over_time", {}).get("averages", [])
+    if averages:
+        avg_map = {a["query"].lower(): int(a["value"]) for a in averages}
+        return [avg_map.get(t.lower(), 0) for t in terms]
+
+    # Otherwise calculate from timeline_data
+    timeline = data.get("interest_over_time", {}).get("timeline_data", [])
+    sums = {t.lower(): 0 for t in terms}
+    counts = {t.lower(): 0 for t in terms}
+    for point in timeline:
+        for v in point.get("values", []):
+            q = v.get("query", "").lower()
+            try:
+                val = int(str(v.get("extracted_value", v.get("value", 0))).replace("<1", "0"))
+            except (ValueError, TypeError):
+                val = 0
+            if q in sums:
+                sums[q] += val
+                counts[q] += 1
+    return [
+        round(sums[t.lower()] / counts[t.lower()]) if counts[t.lower()] else 0
+        for t in terms
+    ]
+
+
+# ── Public entry point ─────────────────────────────────────────────────────────
 
 def fetch_trends_scores(terms, geo, timeframe):
-    """Returns list of int scores (0–100) for each term. Retries 3×."""
-    try:
-        from pytrends.request import TrendReq  # noqa: ensure installed
-    except ImportError:
-        raise RuntimeError("pytrends is not installed. Run: pip install pytrends")
+    """
+    Returns a list of int scores (0–100) for each term.
 
+    Priority:
+      1. 24-hour local cache (no network call)
+      2. SerpAPI (primary — real browser sessions, avoids bot detection)
+      3. Direct Google Trends API (fallback — may get rate-limited or fake data)
+    """
     clean = [t.strip() for t in terms]
     unique = list(dict.fromkeys(t for t in clean if t))
     if not unique:
         return [0] * len(clean)
 
+    def to_result(scores):
+        score_map = {t.lower(): s for t, s in zip(unique, scores)}
+        return [score_map.get(t.lower(), 0) for t in clean]
+
+    # 1 — Cache
+    ck = _cache_key(unique, geo, timeframe)
+    cached = _cache_load(ck)
+    if cached is not None and len(cached) == len(unique):
+        return to_result(cached)
+
+    # 2 — SerpAPI (primary, if key is configured)
+    serpapi_key = get_serpapi_key()
+    if serpapi_key:
+        try:
+            scores = _fetch_serpapi(unique, geo, timeframe, serpapi_key)
+            _cache_save(ck, scores)
+            return to_result(scores)
+        except Exception:
+            pass  # fall through to direct
+
+    # 3 — Direct Google Trends (fallback, 3 retries)
     last_err = None
     for attempt in range(3):
         if attempt:
-            # Longer back-off on 429: 8s then 20s
-            delay = [8, 20][min(attempt - 1, 1)]
-            time.sleep(delay)
+            time.sleep([10, 25][attempt - 1])
         try:
-            pt = _get_pytrends()
-            # Small polite pause before every request
-            time.sleep(1.5)
-            pt.build_payload(kw_list=unique, timeframe=timeframe, geo=geo)
-            df = pt.interest_over_time()
-
-            if df.empty:
-                score_map = {t: 0 for t in unique}
-            else:
-                score_map = {
-                    t: int(df[t].mean()) if t in df.columns else 0
-                    for t in unique
-                }
-            return [score_map.get(t, 0) for t in clean]
+            scores = _fetch_direct(unique, geo, timeframe)
+            _cache_save(ck, scores)
+            return to_result(scores)
         except Exception as e:
             last_err = e
-            # Force a fresh session on next attempt if we got rate-limited
-            global _pytrends_instance
-            with _pytrends_lock:
-                _pytrends_instance = None
+            _get_session(force=True)
 
     raise RuntimeError(f"Google Trends failed after 3 attempts: {last_err}")
 
@@ -300,6 +491,26 @@ def api_get_preset(name):
 @app.route("/api/preset/<name>", methods=["POST"])
 def api_save_preset(name):
     save_preset(name, request.json)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/config")
+def api_get_config():
+    cfg = load_config()
+    key = cfg.get("serpapi_key", "")
+    return jsonify({
+        "serpapi_key": key,
+        "serpapi_key_set": bool(key),
+    })
+
+
+@app.route("/api/config", methods=["POST"])
+def api_save_config():
+    cfg = load_config()
+    data = request.json or {}
+    if "serpapi_key" in data:
+        cfg["serpapi_key"] = data["serpapi_key"].strip()
+    save_config(cfg)
     return jsonify({"ok": True})
 
 
