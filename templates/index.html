@@ -770,8 +770,9 @@ input[type=checkbox] {
         <div class="api-key-input-row">
           <input type="password" id="setting-serpapi-key" placeholder="Paste your SerpAPI key for reliable scores" autocomplete="off" spellcheck="false">
           <button class="btn btn-secondary btn-sm" id="save-key-btn" style="white-space:nowrap">Save Key</button>
+          <button class="btn btn-secondary btn-sm" id="test-key-btn" style="white-space:nowrap;display:none">Test</button>
         </div>
-        <div class="api-key-hint">Without a key, scores come directly from Google Trends (may be rate-limited). Get a free key at <strong>serpapi.com</strong> — 250 searches/month free.</div>
+        <div class="api-key-hint" id="api-key-hint">Without a key, scores come directly from Google Trends (may be rate-limited). Get a free key at <strong>serpapi.com</strong> — 250 searches/month free.</div>
       </div>
     </section>
   </main>
@@ -1045,16 +1046,44 @@ async function loadApiKeyStatus() {
     const cfg = await api('config');
     const statusEl = document.getElementById('api-key-status');
     const input = document.getElementById('setting-serpapi-key');
+    const testBtn = document.getElementById('test-key-btn');
+    const hint = document.getElementById('api-key-hint');
     if (cfg.serpapi_key_set) {
       statusEl.textContent = '✓ Active';
       statusEl.className = 'api-key-status set';
-      // Show masked key so user knows one is saved; let them re-enter to change
       input.placeholder = cfg.serpapi_key.slice(0, 8) + '••••••••••••••••••••••••';
+      testBtn.style.display = '';
     } else {
       statusEl.textContent = 'Not set';
       statusEl.className = 'api-key-status unset';
+      testBtn.style.display = 'none';
+      hint.innerHTML = 'Without a key, scores come directly from Google Trends (may be rate-limited). Get a free key at <strong>serpapi.com</strong> — 250 searches/month free.';
     }
   } catch(e) { /* non-fatal */ }
+}
+
+async function testApiKey(key) {
+  const statusEl = document.getElementById('api-key-status');
+  const hint = document.getElementById('api-key-hint');
+  statusEl.textContent = 'Testing…';
+  statusEl.className = 'api-key-status';
+  try {
+    const result = await api('config/test-key', 'POST', key ? { key } : {});
+    if (result.ok) {
+      statusEl.textContent = '✓ Active';
+      statusEl.className = 'api-key-status set';
+      const searches = result.searches_left !== undefined ? result.searches_left : '?';
+      const plan = result.plan ? ` (${result.plan})` : '';
+      hint.innerHTML = `Key verified — <strong>${searches} searches remaining</strong>${plan}.`;
+    } else {
+      statusEl.textContent = '✗ Invalid';
+      statusEl.className = 'api-key-status unset';
+      hint.innerHTML = `<span style="color:var(--red)">Key check failed: ${result.error}</span>`;
+    }
+  } catch(e) {
+    statusEl.textContent = '? Error';
+    statusEl.className = 'api-key-status unset';
+  }
 }
 
 // Setup event listeners
@@ -1110,11 +1139,24 @@ document.getElementById('save-key-btn').addEventListener('click', async () => {
   try {
     await api('config', 'POST', { serpapi_key: key });
     document.getElementById('setting-serpapi-key').value = '';
-    await loadApiKeyStatus();
-    showToast(key ? 'SerpAPI key saved' : 'Key removed');
+    if (key) {
+      await testApiKey(key);
+      // Refresh placeholder to show new key hint
+      const cfg = await api('config');
+      document.getElementById('setting-serpapi-key').placeholder =
+        cfg.serpapi_key.slice(0, 8) + '••••••••••••••••••••••••';
+      document.getElementById('test-key-btn').style.display = '';
+    } else {
+      showToast('Key removed');
+      await loadApiKeyStatus();
+    }
   } catch(e) {
     showToast('Could not save key', true);
   }
+});
+
+document.getElementById('test-key-btn').addEventListener('click', async () => {
+  await testApiKey(null);  // null = use saved key
 });
 
 document.getElementById('save-preset-btn').addEventListener('click', async () => {

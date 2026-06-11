@@ -167,6 +167,21 @@ def _get_session(force=False):
 
 # ── Direct Google Trends API ───────────────────────────────────────────────────
 
+def _parse_json(raw, label):
+    """Strip Google's )]}' prefix and parse JSON, with a clear error if the body isn't JSON."""
+    text = raw.strip()
+    if text.startswith(")]}'"):
+        text = text[4:].strip()
+    if not text:
+        raise RuntimeError(f"Google Trends returned an empty response ({label}) — likely rate-limited or blocked")
+    if text.lstrip().startswith("<"):
+        raise RuntimeError(f"Google Trends returned an HTML page ({label}) — likely a captcha or block page")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Google Trends returned unexpected content ({label}): {e}") from e
+
+
 def _fetch_direct(terms, geo, timeframe):
     """
     Calls the undocumented Google Trends JSON API directly.
@@ -189,10 +204,7 @@ def _fetch_direct(terms, geo, timeframe):
         timeout=20,
     )
     r1.raise_for_status()
-    raw1 = r1.text
-    if raw1.startswith(")]}'"):
-        raw1 = raw1[4:].strip()
-    widgets = json.loads(raw1).get("widgets", [])
+    widgets = _parse_json(r1.text, "explore").get("widgets", [])
     ts_widget = next((w for w in widgets if w.get("id") == "TIMESERIES"), None)
     if not ts_widget:
         return [0] * len(terms)
@@ -210,10 +222,7 @@ def _fetch_direct(terms, geo, timeframe):
         timeout=20,
     )
     r2.raise_for_status()
-    raw2 = r2.text
-    if raw2.startswith(")]}'"):
-        raw2 = raw2[4:].strip()
-    timeline = json.loads(raw2).get("default", {}).get("timelineData", [])
+    timeline = _parse_json(r2.text, "widgetdata").get("default", {}).get("timelineData", [])
     if not timeline:
         return [0] * len(terms)
 
@@ -299,13 +308,14 @@ def fetch_trends_scores(terms, geo, timeframe):
 
     # 2 — SerpAPI (primary, if key is configured)
     serpapi_key = get_serpapi_key()
+    serpapi_err = None
     if serpapi_key:
         try:
             scores = _fetch_serpapi(unique, geo, timeframe, serpapi_key)
             _cache_save(ck, scores)
             return to_result(scores)
-        except Exception:
-            pass  # fall through to direct
+        except Exception as e:
+            serpapi_err = e  # fall through to direct, but remember the error
 
     # 3 — Direct Google Trends (fallback, 3 retries)
     last_err = None
@@ -320,6 +330,8 @@ def fetch_trends_scores(terms, geo, timeframe):
             last_err = e
             _get_session(force=True)
 
+    if serpapi_err:
+        raise RuntimeError(f"SerpAPI failed ({serpapi_err}); Google Trends also failed: {last_err}")
     raise RuntimeError(f"Google Trends failed after 3 attempts: {last_err}")
 
 
@@ -512,6 +524,40 @@ def api_save_config():
         cfg["serpapi_key"] = data["serpapi_key"].strip()
     save_config(cfg)
     return jsonify({"ok": True})
+
+
+def _check_serpapi_key(key):
+    """
+    Validates a SerpAPI key via the /account endpoint (no search consumed).
+    Returns dict: {ok, searches_left, plan, error}
+    """
+    if not key:
+        return {"ok": False, "error": "No key provided"}
+    try:
+        r = _requests.get(
+            "https://serpapi.com/account",
+            params={"api_key": key},
+            timeout=10,
+        )
+        if r.status_code == 401:
+            return {"ok": False, "error": "Invalid API key"}
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "ok": True,
+            "searches_left": data.get("searches_left", "?"),
+            "plan": data.get("plan_name", ""),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.route("/api/config/test-key", methods=["POST"])
+def api_test_key():
+    """Test a key passed in the request body, or the currently saved key."""
+    data = request.json or {}
+    key = data.get("key", "").strip() or get_serpapi_key()
+    return jsonify(_check_serpapi_key(key))
 
 
 if __name__ == "__main__":
