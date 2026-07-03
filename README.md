@@ -23,6 +23,17 @@ python3 app.py
 # then open http://localhost:5001
 ```
 
+## SerpAPI setup (recommended)
+
+TrendGame can query Google Trends directly, but Google's direct API is easily rate-limited and sometimes returns fake/placeholder data. For reliable scoring, sign up for a free [SerpAPI](https://serpapi.com/users/sign_up) account and get an API key — SerpAPI proxies the request through a real browser session, which avoids the rate limiting. The free tier includes 250 searches/month, which is plenty for casual game nights.
+
+Set the key one of two ways:
+
+- **In-app (recommended)** — open the app's Settings screen, paste your key, and save. It's validated against SerpAPI and tests your remaining search quota with the "Test key" button. The key is stored locally in `~/Library/Application Support/TrendGame/config.json` — it's never committed to this repo.
+- **Environment variable** — `export SERPAPI_KEY=your_key_here` before running `python3 app.py` (useful for local dev; takes precedence over the saved config).
+
+Without a key, TrendGame falls back to direct Google Trends requests, and if those fail too, to the [manual score entry](#fallback) fallback.
+
 ## Build a Mac .app
 
 ```bash
